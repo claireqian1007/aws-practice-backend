@@ -3,24 +3,42 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as apigateway from "aws-cdk-lib/aws-apigateway";
 import * as path from "path";
 import { Construct } from "constructs";
-
+import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 export class ProductServiceStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    // 创建 Layer
+    const commonLayer = new lambda.LayerVersion(this, "CommonLayer", {
+      code: lambda.Code.fromAsset( path.join(__dirname, "../lambda/layers/common")),
+      compatibleRuntimes: [lambda.Runtime.NODEJS_18_X],
+      description: "common dependencies",
+    });
+
+    // 引用已存在的 DynamoDB 表
+    const productsTable = dynamodb.Table.fromTableName(this, 'ProductsTable', 'products');
+    const stockTable = dynamodb.Table.fromTableName(this, 'StockTable', 'stock');
+
     // 创建 Lambda 函数
     const productLambda = new lambda.Function(this, "ProductHandler", {
+      layers: [commonLayer],
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: "index.handler",
       code: lambda.Code.fromAsset(
-        path.join(__dirname, "../lambda/product-service")
+        path.join(__dirname, "../lambda/get-product") // 新目录
       ),
       environment: {
         NODE_OPTIONS: "--enable-source-maps",
+        PRODUCTS_TABLE: productsTable.tableName, // 环境变量
+        STOCK_TABLE: stockTable.tableName,
       },
       timeout: cdk.Duration.seconds(15),
       memorySize: 256,
     });
+
+    // 授权 Lambda 读取表数据
+    productsTable.grantReadData(productLambda);
+    stockTable.grantReadData(productLambda);
 
     // 创建 API Gateway
     const api = new apigateway.RestApi(this, "ProductApi", {
@@ -73,34 +91,53 @@ export class ProductServiceStack extends cdk.Stack {
         methodResponses: commonMethodResponses,
       }
     );
-    product.addMethod(
-      "DELETE",
-      new apigateway.LambdaIntegration(productLambda, {
-        proxy: false,
-        requestTemplates: {
-          "application/json": `{
-            "httpMethod": "$context.httpMethod",
-            "path": "$context.resourcePath",
-            "id": "$input.params('id')"
-          }`,
-        },
-        integrationResponses: commonIntegrationResponses,
-      }),
-      {
-        methodResponses: commonMethodResponses,
-      }
-    );
+    // product.addMethod(
+    //   "DELETE",
+    //   new apigateway.LambdaIntegration(productLambda, {
+    //     proxy: false,
+    //     requestTemplates: {
+    //       "application/json": `{
+    //         "httpMethod": "$context.httpMethod",
+    //         "path": "$context.resourcePath",
+    //         "id": "$input.params('id')"
+    //       }`,
+    //     },
+    //     integrationResponses: commonIntegrationResponses,
+    //   }),
+    //   {
+    //     methodResponses: commonMethodResponses,
+    //   }
+    // );
 
-    // /products (PUT)
+    const manageProductLambda = new lambda.Function(this, "CreateProductHandler", {
+      layers: [commonLayer],
+      runtime: lambda.Runtime.NODEJS_18_X,
+      handler: "index.handler",
+      code: lambda.Code.fromAsset(
+        path.join(__dirname, "../lambda/manage-product") // 新目录
+      ),
+      environment: {
+        PRODUCTS_TABLE: productsTable.tableName,
+        STOCK_TABLE: stockTable.tableName, // 如果需要操作 stock 表
+        NODE_OPTIONS: "--enable-source-maps",
+      },
+      timeout: cdk.Duration.seconds(15),
+      memorySize: 256,
+    });
+
+    productsTable.grantWriteData(manageProductLambda);
+    stockTable.grantWriteData(manageProductLambda);
+
+    // /products (post)
     products.addMethod(
-      "PUT",
-      new apigateway.LambdaIntegration(productLambda, {
+      "POST",
+      new apigateway.LambdaIntegration(manageProductLambda, {
         proxy: false,
         requestTemplates: {
           "application/json": `{
           "httpMethod": "$context.httpMethod",
           "path": "$context.resourcePath",
-          "body": $input.json('$')
+          "body": $input.body
         }`,
         },
         integrationResponses: commonIntegrationResponses,
@@ -109,6 +146,7 @@ export class ProductServiceStack extends cdk.Stack {
         methodResponses: commonMethodResponses,
       }
     );
+
   }
 }
 
