@@ -1,8 +1,11 @@
 import { S3Client, GetObjectCommand, CopyObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
+import { SQSClient, SendMessageCommand } from '@aws-sdk/client-sqs';
 import * as csvParser from 'csv-parser';
 
-const s3 = new S3Client({ region:  process.env.AWS_REGION });
+const s3 = new S3Client({ region: process.env.AWS_REGION });
+const sqs = new SQSClient({ region: process.env.AWS_REGION });
+const queueUrl = process.env.SQS_QUEUE_URL!;
 
 export const handler = async (event: any): Promise<void> => {
   for (const record of event.Records) {
@@ -17,28 +20,60 @@ export const handler = async (event: any): Promise<void> => {
 
     // 流式处理 CSV
     const stream = response.Body as Readable;
-    stream
-      .pipe(csvParser())
-      .on('data', (data) => {
-        console.log('Parsed product:', data);
-      })
-      .on('end', async () => {
-        // 移动文件到 parsed/ 目录
-        const newKey = key.replace('uploaded/', 'parsed/');
-        await s3.send(new CopyObjectCommand({
-          Bucket: bucket,
-          CopySource: `${bucket}/${key}`,
-          Key: newKey,
-        }));
+    // 封装流处理为Promise
+    await new Promise((resolve, reject) => {
+      stream
+        .pipe(csvParser())
+        .on('data', async (data) => {
+          // 发送消息到SQS
+          try {
+            await sqs.send(
+              new SendMessageCommand({
+                QueueUrl: queueUrl,
+                MessageBody: JSON.stringify(data),
+              })
+            );
+          } catch (error) {
+            console.error('Failed to send message to SQS:', error);
+            reject(error);
+          }
+        })
+        .on('end', async () => {
+          // // 移动文件到 parsed/ 目录
+          // const newKey = key.replace('uploaded/', 'parsed/');
+          // await s3.send(new CopyObjectCommand({
+          //   Bucket: bucket,
+          //   CopySource: `${bucket}/${key}`,
+          //   Key: newKey,
+          // }));
 
-        // 删除原文件
-        await s3.send(new DeleteObjectCommand({
-          Bucket: bucket,
-          Key: key,
-        }));
+          // // 删除原文件
+          // await s3.send(new DeleteObjectCommand({
+          //   Bucket: bucket,
+          //   Key: key,
+          // }));
+          console.log('CSV processing completed');
+          resolve(true);
+        })
+        .on('error', (error) => {
+          console.error('CSV parsing error:', error);
+          reject(error);
+        });
+    });
+    // 移动并删除文件
+    const newKey = key.replace('uploaded/', 'parsed/');
+    await s3.send(
+      new CopyObjectCommand({
+        Bucket: bucket,
+        CopySource: `${bucket}/${key}`,
+        Key: newKey,
       })
-      .on('error', (error) => {
-        console.error('CSV parsing error:', error);
-      });
+    );
+    await s3.send(
+      new DeleteObjectCommand({
+        Bucket: bucket,
+        Key: key,
+      })
+    );
   }
 };
