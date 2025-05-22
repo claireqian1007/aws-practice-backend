@@ -1,15 +1,20 @@
 import * as cdk from 'aws-cdk-lib';
 import * as s3 from 'aws-cdk-lib/aws-s3';
-import * as lambda from "aws-cdk-lib/aws-lambda";
-import * as apigateway from "aws-cdk-lib/aws-apigateway";
+import * as lambda from 'aws-cdk-lib/aws-lambda';
+import * as apigateway from 'aws-cdk-lib/aws-apigateway';
 import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
-import * as path from "path";
+import * as path from 'path';
+import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
+
+interface ImportServiceStackProps extends cdk.StackProps {
+  catalogItemsQueue: sqs.Queue;
+}
 
 export class ImportServiceStack extends cdk.Stack {
   public readonly productsBucket: s3.Bucket;
 
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: ImportServiceStackProps) {
     super(scope, id, props);
 
     // 创建 S3 Bucket（禁用版本控制和加密以符合免费层）
@@ -31,7 +36,7 @@ export class ImportServiceStack extends cdk.Stack {
     const importProductsLambda = new lambda.Function(this, 'ImportProductsFile', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'importProductsFile.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, "../lambda/import-service")),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/import-service')),
       environment: {
         BUCKET_NAME: this.productsBucket.bucketName,
       },
@@ -60,11 +65,11 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
-     // 创建 importFileParser Lambda
-     const importFileParserLambda = new lambda.Function(this, 'ImportFileParser', {
+    // 创建 importFileParser Lambda
+    const importFileParserLambda = new lambda.Function(this, 'ImportFileParser', {
       runtime: lambda.Runtime.NODEJS_18_X,
       handler: 'importFileParser.handler',
-      code: lambda.Code.fromAsset(path.join(__dirname, "../lambda/import-service")),
+      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/import-service')),
       environment: {
         BUCKET_NAME: this.productsBucket.bucketName,
       },
@@ -82,5 +87,8 @@ export class ImportServiceStack extends cdk.Stack {
       new s3n.LambdaDestination(importFileParserLambda),
       { prefix: 'uploaded/' } // 仅监听 uploaded/ 目录
     );
+
+    importFileParserLambda.addEnvironment('SQS_QUEUE_URL', props.catalogItemsQueue.queueUrl);
+    props.catalogItemsQueue.grantSendMessages(importFileParserLambda);
   }
 }

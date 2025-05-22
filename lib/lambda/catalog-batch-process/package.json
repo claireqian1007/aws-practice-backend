@@ -1,18 +1,14 @@
 {
-  "name": "import-service",
+  "name": "catalog-batch-process",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.797.0",
-    "@aws-sdk/client-sqs": "^3.812.0",
-    "@aws-sdk/s3-request-presigner": "^3.797.0",
-    "csv-parser": "^3.2.0"
+    "@aws-sdk/client-sns": "^3.812.0"
   }
 }
