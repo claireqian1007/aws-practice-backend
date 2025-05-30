@@ -3,7 +3,7 @@ import { APIGatewayAuthorizerResult, APIGatewayTokenAuthorizerEvent } from 'aws-
 export const handler = async (event: APIGatewayTokenAuthorizerEvent) => {
   try {
     // 1. 验证 Authorization 头是否存在
-    const authToken = event.authorizationToken;
+    const authToken = event?.authorizationToken;
     if (!authToken || !authToken.startsWith('Basic ')) {
       return generatePolicy('user', 'Deny', event.methodArn, 401);
     }
@@ -14,7 +14,7 @@ export const handler = async (event: APIGatewayTokenAuthorizerEvent) => {
     const [username, password] = decodedCreds.split(':');
 
     // 3. 验证凭据
-    const storedPassword = process.env[username];
+    const storedPassword = process.env[`MY_KEY_${username}`];
     if (!storedPassword || storedPassword !== password) {
       return generatePolicy('user', 'Deny', event.methodArn, 403);
     }

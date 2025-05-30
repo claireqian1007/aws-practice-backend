@@ -2,7 +2,7 @@ import { APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDBClient, ScanCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 
-const client = new DynamoDBClient({ region: "us-east-1" }); // 替换为你的区域
+const client = new DynamoDBClient({ region: "eu-north-1" }); 
 
 export const handler = async (
   event: any
