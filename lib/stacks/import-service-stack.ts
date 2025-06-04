@@ -6,9 +6,12 @@ import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as path from 'path';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
+import { AuthorizationServiceStack } from './authorization-service-stack';
 
 interface ImportServiceStackProps extends cdk.StackProps {
   catalogItemsQueue: sqs.Queue;
+  // basicAuthorizer: lambda.Function;
+  authorizerLambdaArn: string;
 }
 
 export class ImportServiceStack extends cdk.Stack {
@@ -57,12 +60,31 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
+     // 这个写法会导致隐式资源引用从而导致两个stack之间的循环依赖
+    //  const authStack = new AuthorizationServiceStack(this, 'AuthorizationServiceStack', {
+    //     env: { region: 'us-east-1' },
+    //  });
+    //  const authorizer = new apigateway.TokenAuthorizer(this, 'BasicAuthorizer', {
+    //    handler: props.basicAuthorizer,
+    //  });
+
+    //改用arn导入Lambda
+    const authorizerLambda = lambda.Function.fromFunctionAttributes(this, 'ImportedAuthorizer', {
+      functionArn: props.authorizerLambdaArn,
+      sameEnvironment: true, // 新增此参数
+    });
+
+    const authorizer = new apigateway.TokenAuthorizer(this, 'BasicAuthorizer', {
+      handler: authorizerLambda,
+    });
+
     // 添加 GET /import 方法
     const importResource = api.root.addResource('import');
     importResource.addMethod('GET', new apigateway.LambdaIntegration(importProductsLambda), {
       requestParameters: {
         'method.request.querystring.name': true, // 强制要求 name 参数
       },
+      authorizer
     });
 
     // 创建 importFileParser Lambda
