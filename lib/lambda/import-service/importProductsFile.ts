@@ -3,7 +3,11 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from 'aws-lambda';
 
 const s3 = new S3Client({ region: process.env.AWS_REGION });
-
+const headers = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+};
 export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
   const fileName = event.queryStringParameters?.name;
 
@@ -11,6 +15,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     return {
       statusCode: 400,
       body: JSON.stringify({ error: 'Missing "name" query parameter' }),
+      headers,
     };
   }
 
@@ -24,7 +29,7 @@ export const handler = async (event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 3600, unhoistableHeaders: new Set(['Access-Control-Expose-Headers']) });
     return {
       statusCode: 200,
-      headers: { 'Access-Control-Allow-Origin': '*' },
+      headers,
       body: JSON.stringify({ url: signedUrl }),
     };
   } catch (error) {

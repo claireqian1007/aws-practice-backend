@@ -22,7 +22,6 @@ export class ImportServiceStack extends cdk.Stack {
 
     // 创建 S3 Bucket（禁用版本控制和加密以符合免费层）
     this.productsBucket = new s3.Bucket(this, 'ProductsBucket', {
-      bucketName: `products-import-bucket-${this.account}`,
       cors: [
         {
           allowedMethods: [s3.HttpMethods.PUT], // 允许 PUT 方法
@@ -60,9 +59,9 @@ export class ImportServiceStack extends cdk.Stack {
       },
     });
 
-     // 这个写法会导致隐式资源引用从而导致两个stack之间的循环依赖
+    // 这个写法会导致隐式资源引用从而导致两个stack之间的循环依赖
     //  const authStack = new AuthorizationServiceStack(this, 'AuthorizationServiceStack', {
-    //     env: { region: 'us-east-1' },
+    //     env: { region: 'eu-north-1' },
     //  });
     //  const authorizer = new apigateway.TokenAuthorizer(this, 'BasicAuthorizer', {
     //    handler: props.basicAuthorizer,
@@ -84,7 +83,25 @@ export class ImportServiceStack extends cdk.Stack {
       requestParameters: {
         'method.request.querystring.name': true, // 强制要求 name 参数
       },
-      authorizer
+      authorizer,
+      methodResponses: [
+        {
+          statusCode: '200',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+            'method.response.header.Access-Control-Allow-Headers': true,
+            'method.response.header.Access-Control-Allow-Methods': true,
+          },
+        },
+        {
+          statusCode: '400',
+          responseParameters: {
+            'method.response.header.Access-Control-Allow-Origin': true,
+            'method.response.header.Access-Control-Allow-Headers': true,
+            'method.response.header.Access-Control-Allow-Methods': true,
+          },
+        },
+      ],
     });
 
     // 创建 importFileParser Lambda
@@ -102,7 +119,7 @@ export class ImportServiceStack extends cdk.Stack {
     // 授权 Lambda 读取/删除 S3 对象
     this.productsBucket.grantRead(importFileParserLambda);
     this.productsBucket.grantDelete(importFileParserLambda);
-
+    
     // 添加 S3 事件触发
     this.productsBucket.addEventNotification(
       s3.EventType.OBJECT_CREATED,

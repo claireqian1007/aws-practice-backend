@@ -2,7 +2,7 @@ import { APIGatewayProxyResult } from "aws-lambda";
 import { DynamoDBClient, PutItemCommand, GetItemCommand } from "@aws-sdk/client-dynamodb";
 import { v4 as uuidv4 } from "uuid";
 
-const client = new DynamoDBClient({ region: "us-east-1" });
+const client = new DynamoDBClient({ region: "eu-north-1" });
 
 export const handler = async (
   event: any
