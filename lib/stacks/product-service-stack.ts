@@ -188,9 +188,20 @@ export class ProductServiceStack extends cdk.Stack {
   }
 }
 
+// 处理lambda函数返回的 JSON 响应 （根据状态码匹配，匹配不到就不起作用）
 const commonIntegrationResponses = [
   {
     statusCode: '200',
+    responseTemplates: {
+      'application/json': `$util.parseJson($input.json('$.body'))`,
+    },
+    responseParameters: {
+      'method.response.header.Content-Type': "'application/json'",
+      'method.response.header.Access-Control-Allow-Origin': "'*'",
+    },
+  },
+  {
+    statusCode: '201',
     responseTemplates: {
       'application/json': `$util.parseJson($input.json('$.body'))`,
     },
@@ -209,6 +220,7 @@ const commonIntegrationResponses = [
   },
 ];
 
+// 处理integrationresponse，规定哪些responseParameters (如Header) 可返回给客户端（根据状态码匹配，匹配不到就不起作用）
 const commonMethodResponses = [
   {
     statusCode: '200',
@@ -224,4 +236,11 @@ const commonMethodResponses = [
       'method.response.header.Access-Control-Allow-Origin': true,
     },
   },
+  {
+    statusCode: '201',
+    responseParameters: {
+      'method.response.header.Content-Type': true,
+      'method.response.header.Access-Control-Allow-Origin': true,
+    },
+  }
 ];

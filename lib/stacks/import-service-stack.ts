@@ -6,7 +6,6 @@ import * as s3n from 'aws-cdk-lib/aws-s3-notifications';
 import * as path from 'path';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
-import { AuthorizationServiceStack } from './authorization-service-stack';
 
 interface ImportServiceStackProps extends cdk.StackProps {
   catalogItemsQueue: sqs.Queue;
